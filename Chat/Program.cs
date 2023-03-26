@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Chat;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -17,26 +18,46 @@ namespace ImageProcessing
             }
         }
 
-        static void Main(string[] args)
+        private static List<Color> getGreenColors(ImageHelper imageHelper)
         {
-            ImageLoader.ProcessImages("C:\\Users\\Zhenya\\Desktop\\FolderImage\\EA Guide", "C:\\Users\\Zhenya\\Desktop\\FolderImage\\EA Guide-done", (image, filePath, targetFolder) =>
-            {
-                var imageHelper = new ImageHelper();
-                List<Color> colors = new List<Color>();
-                colors.Add(imageHelper.GetColorFromHex("#4bfc00"));
-                //colors.Add(imageHelper.GetColorFromHex("#2d9700"));
+            List<Color> colors = new List<Color>();
+            colors.Add(imageHelper.GetColorFromHex("#2d9700"));
+            colors.Add(imageHelper.GetColorFromHex("#4bfc00"));
+            colors.Add(imageHelper.GetColorFromHex("#3cca00"));
+            return colors;
+        }
 
+        private static List<Color> getOrangeColors(ImageHelper imageHelper)
+        {
+            List<Color> colors = new List<Color>();
+            colors.Add(imageHelper.GetColorFromHex("#978000"));
+            colors.Add(imageHelper.GetColorFromHex("#fcd500"));
+            colors.Add(imageHelper.GetColorFromHex("#caab00"));
+            return colors;
+        }
+
+        private static void RunProcessImages(HandlerSettings settings)
+        {
+            ImageHelper imageHelper = settings.InstanceImageHelper;
+            ImageLoader.ProcessImages("C:\\Users\\Zhenya\\Desktop\\Screen\\Green", "C:\\Users\\Zhenya\\Desktop\\Screen\\Green-done", (image, filePath, targetFolder) =>
+            {
                 using (var newImage = imageHelper.BitmapFromPath(filePath))
                 {
-                    newImage.MakeTransparent();
+                    if (settings.IsTransparent)
+                        newImage.MakeTransparent();
 
-                    imageHelper.RemovePixelsByColor(colors, newImage, 0.8);
+                    Bitmap bitmap = newImage;
+                    if (settings.RemoveBackground == true)
+                    {
+                        imageHelper.RemovePixelsByColor(settings.Colors, newImage, settings.Tolerance);
+                        Rectangle cropRectangle = imageHelper.FindLargestNonTransparentArea(newImage, settings.FindNonTransparent);
+                        bitmap = imageHelper.CropImage(newImage, cropRectangle);
+                    }
 
-                    Rectangle cropRectangle = imageHelper.FindLargestNonTransparentArea(newImage, 200);
-
-                    var cropedBitmap = imageHelper.CropImage(newImage, cropRectangle);
-
-                    var result = imageHelper.ResizeWithSharpness(cropedBitmap, 300, 300);
+                    if (settings.NeedResize == true)
+                    {
+                        bitmap = imageHelper.ResizeWithSharpness(bitmap, settings.CropSizeX, settings.CropSizeY);
+                    }
 
                     // Создаем путь для сохранения изображения в целевой директории
                     var subfolder = Path.GetDirectoryName(filePath).Substring(Path.GetDirectoryName(filePath).IndexOf(Path.DirectorySeparatorChar) + 1);
@@ -45,9 +66,41 @@ namespace ImageProcessing
                     CreateDirectoryIfNotExists(Path.GetDirectoryName(targetPath));
 
                     // Сохраняем изображение в новую папку с сохранением структуры папок
-                    result.Save(targetPath);
+                    bitmap.Save(targetPath);
                 }
             });
+        }
+
+        static void Main(string[] args)
+        {
+            HandlerSettings GreenSettings = new HandlerSettings()
+            {
+                NeedResize = false,
+                RemoveBackground = true,
+                IsTransparent = true,
+                CropSizeX = 300,
+                CropSizeY = 300,
+                Tolerance = 0.05,
+                FindNonTransparent = 254,
+                SourcePath = "C:\\Users\\Zhenya\\Desktop\\Screen\\Green",
+                ResultPath = "C:\\Users\\Zhenya\\Desktop\\Screen\\Green-done"
+            };
+            GreenSettings.Colors = getGreenColors(GreenSettings.InstanceImageHelper);
+            RunProcessImages(GreenSettings);
+
+            //HandlerSettings OrangeSettings = new HandlerSettings()
+            //{
+            //    NeedResize = false,
+            //    RemoveBackground = true,
+            //    CropSizeX = 300,
+            //    CropSizeY = 300,
+            //    Tolerance = 0.05,
+            //    FindNonTransparent = 250,
+            //    SourcePath = "C:\\Users\\Zhenya\\Desktop\\Screen\\Orange",
+            //    ResultPath = "C:\\Users\\Zhenya\\Desktop\\Screen\\Orange-done"
+            //};
+            //OrangeSettings.Colors = getOrangeColors(OrangeSettings.InstanceImageHelper);
+            //RunProcessImages(OrangeSettings);
         }
     }
 }
