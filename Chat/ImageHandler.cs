@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using static System.Formats.Asn1.AsnWriter;
+using System.Collections;
+using System.Diagnostics;
+using System.Reflection;
 
 public abstract class BaseImageHelper
 {
@@ -73,7 +77,7 @@ public class ImageHelper : BaseImageHelper
         return (diffR * diffR + diffG * diffG + diffB * diffB) <= tolerance;
     }
 
-    public Rectangle FindLargestNonTransparentArea(Bitmap bitmap, int threshold = 0)
+    public Rectangle FindLargestNonTransparentArea(Bitmap bitmap, int threshold = 0, int minClusterSize = 1)
     {
         int width = bitmap.Width;
         int height = bitmap.Height;
@@ -90,26 +94,42 @@ public class ImageHelper : BaseImageHelper
             {
                 byte* bitmapPtr = (byte*)bitmapData.Scan0;
 
-                Parallel.For(0, height, y =>
+                // Find clusters of non-transparent pixels
+                List<List<Point>> clusters = new List<List<Point>>();
+                bool[,] visited = new bool[width, height];
+                for (int y = 0; y < height; y++)
                 {
                     byte* row = bitmapPtr + (y * bitmapData.Stride);
 
                     for (int x = 0; x < width; x++)
                     {
-                        byte blue = row[x * 4];
-                        byte green = row[x * 4 + 1];
-                        byte red = row[x * 4 + 2];
                         byte alpha = row[x * 4 + 3];
 
-                        if (alpha > threshold)
+                        if (alpha > threshold && !visited[x, y])
                         {
-                            if (x < minX) minX = x;
-                            if (x > maxX) maxX = x;
-                            if (y < minY) minY = y;
-                            if (y > maxY) maxY = y;
+                            List<Point> cluster = new List<Point>();
+                            FindCluster(bitmapPtr, x, y, width, height, threshold, visited, cluster);
+                            clusters.Add(cluster);
                         }
                     }
-                });
+                }
+
+                // Find the largest non-transparent area
+                foreach (List<Point> cluster in clusters)
+                {
+                    if (cluster.Count >= minClusterSize)
+                    {
+                        int clusterMinX = cluster.Min(p => p.X);
+                        int clusterMaxX = cluster.Max(p => p.X);
+                        int clusterMinY = cluster.Min(p => p.Y);
+                        int clusterMaxY = cluster.Max(p => p.Y);
+
+                        if (clusterMinX < minX) minX = clusterMinX;
+                        if (clusterMaxX > maxX) maxX = clusterMaxX;
+                        if (clusterMinY < minY) minY = clusterMinY;
+                        if (clusterMaxY > maxY) maxY = clusterMaxY;
+                    }
+                }
             }
         }
         finally
@@ -119,6 +139,37 @@ public class ImageHelper : BaseImageHelper
 
         return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
+
+    private unsafe void FindCluster(byte* bitmapPtr, int x, int y, int width, int height, int threshold, bool[,] visited, List<Point> cluster)
+    {
+        Queue<Point> queue = new Queue<Point>();
+        queue.Enqueue(new Point(x, y));
+
+        while (queue.Count > 0)
+        {
+            Point point = queue.Dequeue();
+            x = point.X;
+            y = point.Y;
+
+            if (x < 0 || x >= width || y < 0 || y >= height || visited[x, y])
+                continue;
+
+            visited[x, y] = true;
+
+            byte alpha = bitmapPtr[(y * width + x) * 4 + 3];
+
+            if (alpha > threshold)
+            {
+                cluster.Add(new Point(x, y));
+
+                queue.Enqueue(new Point(x - 1, y));
+                queue.Enqueue(new Point(x + 1, y));
+                queue.Enqueue(new Point(x, y - 1));
+                queue.Enqueue(new Point(x, y + 1));
+            }
+        }
+    }
+
 
     public Bitmap CropImage(Bitmap originalImage, Rectangle cropRectangle)
     {
@@ -130,7 +181,7 @@ public class ImageHelper : BaseImageHelper
         return croppedImage;
     }
 
-    public Bitmap ResizeWithSharpness(Bitmap sourceBitmap, int newWidth, int newHeight)
+    public Bitmap ResizeWithSharpness(Bitmap sourceBitmap, int newWidth, int newHeight, InterpolationMode interpolationMode = InterpolationMode.NearestNeighbor)
     {
         Bitmap resultBitmap = new Bitmap(newWidth, newHeight, PixelFormat.Format32bppArgb);
 
@@ -138,7 +189,8 @@ public class ImageHelper : BaseImageHelper
         Graphics graphics = Graphics.FromImage(resultBitmap);
         graphics.CompositingMode = CompositingMode.SourceCopy;
         graphics.CompositingQuality = CompositingQuality.HighQuality;
-        graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+        graphics.InterpolationMode = interpolationMode;
+        //graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
         //graphics.InterpolationMode = InterpolationMode.Bicubic;
         graphics.SmoothingMode = SmoothingMode.None;
         graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;

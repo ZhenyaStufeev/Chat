@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,6 +22,8 @@ namespace Chat
         public int FindNonTransparent { get; set; }
         public List<Color> Colors { get; set; }
         public bool IsTransparent { get; set; }
+        public int MinClusterSize { get; set; }
+        public InterpolationMode Interpolation { get; set; }
         public HandlerSettings()
         {
             Colors = new List<Color>();
