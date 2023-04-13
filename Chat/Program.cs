@@ -107,7 +107,7 @@ namespace ImageProcessing
         {
             HandlerSettings GreenSettings = new HandlerSettings()
             {
-                NeedResize = true,
+                NeedResize = false,
                 RemoveBackground = true,
                 IsTransparent = true,
                 MinClusterSize = 5,
@@ -116,8 +116,8 @@ namespace ImageProcessing
                 Tolerance = 0.05,
                 Interpolation = InterpolationMode.NearestNeighbor,
                 FindNonTransparent = 254,
-                SourcePath = "C:\\Users\\Zhenya\\Desktop\\Screen\\temp",
-                ResultPath = "C:\\Users\\Zhenya\\Desktop\\Screen\\temp-done"
+                SourcePath = "C:\\Users\\Zhenya\\Desktop\\FigmaProj\\Chat",
+                ResultPath = "C:\\Users\\Zhenya\\Desktop\\FigmaProj\\Chat-done"
             };
             GreenSettings.Colors = getGreenColors(GreenSettings.InstanceImageHelper);
             RunProcessImages(GreenSettings);
