@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Chat
+namespace ImageHandler
 {
     public class HandlerSettings
     {

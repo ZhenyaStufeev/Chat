@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
-using static System.Formats.Asn1.AsnWriter;
 using System.Collections;
 using System.Diagnostics;
 using System.Reflection;
+using System.Collections.Concurrent;
 
 public abstract class BaseImageHelper
 {
@@ -47,18 +47,15 @@ public class ImageHelper : BaseImageHelper
     {
         int totalPixels = bmp.Width * bmp.Height;
         int tolerance = (int)((double)totalPixels * ((double)tolerancePercent / 100.0));
-
-        var pixelsToRemove = new List<(int X, int Y)>();
+        var pixelsToRemove = new ConcurrentBag<(int X, int Y)>();
         var pixels = GetPixels(bmp);
 
-        Parallel.ForEach(pixels, pixel =>
+        Parallel.For(0, pixels.Count, pixelIdx =>
         {
+            var pixel = pixels[pixelIdx];
             if (colors.Any(c => IsColorSimilar(c, pixel.Color, tolerance)))
             {
-                lock (pixelsToRemove)
-                {
-                    pixelsToRemove.Add((pixel.X, pixel.Y));
-                }
+                pixelsToRemove.Add((pixel.X, pixel.Y));
             }
         });
 
@@ -67,6 +64,7 @@ public class ImageHelper : BaseImageHelper
             bmp.SetPixel(pixel.X, pixel.Y, Color.Transparent);
         }
     }
+
 
     private bool IsColorSimilar(Color c1, Color c2, int tolerance)
     {
@@ -170,9 +168,26 @@ public class ImageHelper : BaseImageHelper
         }
     }
 
-
     public Bitmap CropImage(Bitmap originalImage, Rectangle cropRectangle)
     {
+        if (originalImage == null)
+        {
+            throw new ArgumentNullException(nameof(originalImage));
+        }
+
+        if (cropRectangle.Width <= 0 || cropRectangle.Height <= 0)
+        {
+            throw new ArgumentException("Invalid cropRectangle dimensions");
+        }
+
+        // Убедитесь, что cropRectangle находится в пределах границ originalImage
+        cropRectangle.Intersect(new Rectangle(0, 0, originalImage.Width, originalImage.Height));
+
+        if (cropRectangle.Width <= 0 || cropRectangle.Height <= 0)
+        {
+            throw new ArgumentException("Invalid cropRectangle dimensions within the boundaries of the originalImage");
+        }
+
         Bitmap croppedImage = new Bitmap(cropRectangle.Width, cropRectangle.Height);
         using (Graphics g = Graphics.FromImage(croppedImage))
         {
